@@ -2,15 +2,17 @@
 
 struct Circle
 {
+    float4 color;
     float2 position;
     float radius;
+    float blendingFactor;
 };
 
 RWTexture2D<float4> screenTexture;
 RWStructuredBuffer<Circle> circleBuffer;
 float2 resolution;
 
-float2 smin( float a, float b, float k )
+float2 smin(float a, float b, float k)
 {
     float h = 1.0 - min(abs(a - b) / (4.0 * k), 1.0);
     float w = h * h;
@@ -25,9 +27,11 @@ float sdCircle(float2 p, Circle circle)
     return length(p) - circle.radius;
 }
 
-float SDF(float2 pos)
+float SDF(float2 pos, out float4 color)
 {
     float minDist = 999999999;
+    bool hasMinColor = false;
+    float4 minColor;
     uint count;
     uint stride;
     circleBuffer.GetDimensions(count, stride);
@@ -35,15 +39,26 @@ float SDF(float2 pos)
     {
         Circle circle = circleBuffer[i];
         float dist = sdCircle(pos, circle);
-        minDist = smin(dist, minDist, 16.0).x;
+        float2 result = smin(dist, minDist, circle.blendingFactor);
+        minDist = result.x;
+        if (hasMinColor)
+        {
+            minColor = lerp(minColor, circle.color, 1.0 - result.y);
+        } else
+        {
+            minColor = circle.color;
+            hasMinColor = true;
+        }
     }
+    color = minColor;
     return minDist;
 }
 
 [numthreads(8,8,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
-    float dist = SDF(id.xy);
+    float4 color;
+    float dist = SDF(id.xy, color);
     if (dist <= 0)
-        screenTexture[id.xy] = 1;
+        screenTexture[id.xy] = float4(lerp(color.rgb, screenTexture[id.xy].rgb, 1.0 - color.a), 1);
 }

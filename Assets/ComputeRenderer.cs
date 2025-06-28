@@ -17,8 +17,10 @@ public class ComputeRenderer : MonoBehaviour
 	[Serializable]
 	struct Circle
 	{
+		public Color color;
 		public Vector2 position;
 		public float radius;
+		public float blendingFactor;
 	}
 	private void Awake()
 	{
@@ -57,7 +59,7 @@ public class ComputeRenderer : MonoBehaviour
 
 	private void OnEndContextRendering(ScriptableRenderContext ctx, List<Camera> cameras)
 	{
-		ComputeBuffer circleBuffer = new(circles.Count, sizeof(float) * 3);
+		ComputeBuffer circleBuffer = new(circles.Count, sizeof(float) * 8);
 		circleBuffer.SetData(circles);
 		shader.SetVector(ResolutionID, new Vector2(Screen.width, Screen.height));
 		shader.SetTexture(_kernelIndex, ScreenTextureID, _rt);

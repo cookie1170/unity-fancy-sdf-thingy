@@ -398,10 +398,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   circles:
-  - position: {x: 128, y: 256}
+  - color: {r: 1, g: 0.5, b: 0.5, a: 1}
+    position: {x: 128, y: 256}
     radius: 128
-  - position: {x: 420, y: 256}
+    blendingFactor: 0
+  - color: {r: 0.5, g: 0.5, b: 1, a: 1}
+    position: {x: 420, y: 256}
     radius: 128
+    blendingFactor: 0
   shader: {fileID: 7200000, guid: e1ce56fd50b43606f8995b1abaff634f, type: 3}
 --- !u!1 &619394800
 GameObject:
