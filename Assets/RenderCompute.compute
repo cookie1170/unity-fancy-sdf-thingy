@@ -10,6 +10,15 @@ RWTexture2D<float4> screenTexture;
 RWStructuredBuffer<Circle> circleBuffer;
 float2 resolution;
 
+float2 smin( float a, float b, float k )
+{
+    float h = 1.0 - min(abs(a - b) / (4.0 * k), 1.0);
+    float w = h * h;
+    float m = w * 0.5;
+    float s = w * k;
+    return a < b ? float2(a-s,m) : float2(b-s,1.0-m);
+}
+
 float sdCircle(float2 p, Circle circle)
 {
     p -= circle.position;
@@ -22,12 +31,11 @@ float SDF(float2 pos)
     uint count;
     uint stride;
     circleBuffer.GetDimensions(count, stride);
-    for (uint i = 0; i < count + 1; ++i)
+    for (uint i = 0; i < count; ++i)
     {
         Circle circle = circleBuffer[i];
         float dist = sdCircle(pos, circle);
-        if (dist < minDist)
-            minDist = dist;
+        minDist = smin(dist, minDist, 16.0).x;
     }
     return minDist;
 }
@@ -36,5 +44,6 @@ float SDF(float2 pos)
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
     float dist = SDF(id.xy);
-    screenTexture[id.xy] = step(dist, 0);
+    if (dist <= 0)
+        screenTexture[id.xy] = 1;
 }

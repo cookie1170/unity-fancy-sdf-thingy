@@ -20,11 +20,12 @@ public class ComputeRenderer : MonoBehaviour
 		public Vector2 position;
 		public float radius;
 	}
-
-private void Awake()
+	private void Awake()
 	{
 		_cam = GetComponent<Camera>();
-		_rt = new(Screen.width, Screen.height, 24)
+		int width = GetNextMultipleOfEight(Screen.width);
+		int height = GetNextMultipleOfEight(Screen.height);
+		_rt = new(width, height, 24)
 		{
 			enableRandomWrite = true
 		};
@@ -36,11 +37,22 @@ private void Awake()
 
 	private void OnBeginContextRendering(ScriptableRenderContext ctx, List<Camera> cameras)
 	{
-		_rt?.Release();
-		_rt = new(Screen.width, Screen.height, 24)
+		int width = GetNextMultipleOfEight(Screen.width);
+		int height = GetNextMultipleOfEight(Screen.height);
+		if (_rt.width != width || _rt.height != height)
 		{
-			enableRandomWrite = true
-		};
+			_rt?.Release();
+			_rt = new(width, height, 24)
+			{
+				enableRandomWrite = true
+			};
+			_cam.targetTexture = _rt;
+		}
+	}
+
+	private int GetNextMultipleOfEight(int i)
+	{
+		return Mathf.CeilToInt(i / 8f) * 8;
 	}
 
 	private void OnEndContextRendering(ScriptableRenderContext ctx, List<Camera> cameras)
