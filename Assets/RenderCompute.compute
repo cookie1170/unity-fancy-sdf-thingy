@@ -1,9 +1,40 @@
 #pragma kernel CSMain
 
-RWTexture2D<float4> Result;
+struct Circle
+{
+    float2 position;
+    float radius;
+};
+
+RWTexture2D<float4> screenTexture;
+RWStructuredBuffer<Circle> circleBuffer;
+float2 resolution;
+
+float sdCircle(float2 p, Circle circle)
+{
+    p -= circle.position;
+    return length(p) - circle.radius;
+}
+
+float SDF(float2 pos)
+{
+    float minDist = 999999999;
+    uint count;
+    uint stride;
+    circleBuffer.GetDimensions(count, stride);
+    for (uint i = 0; i < count + 1; ++i)
+    {
+        Circle circle = circleBuffer[i];
+        float dist = sdCircle(pos, circle);
+        if (dist < minDist)
+            minDist = dist;
+    }
+    return minDist;
+}
 
 [numthreads(8,8,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
-    Result[id.xy] = float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
+    float dist = SDF(id.xy);
+    screenTexture[id.xy] = step(dist, 0);
 }
