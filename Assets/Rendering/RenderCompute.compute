@@ -22,6 +22,14 @@ struct Box
     float BlendingFactor;
 };
 
+struct Triangle
+{
+    float4 Color;
+    float2 Position;
+    float Radius;
+    float BlendingFactor;
+};
+
 struct SDFInfo
 {
     float minDist;
@@ -29,10 +37,16 @@ struct SDFInfo
     float4 minColor;
 };
 
+float time;
+float noiseAmount;
+Texture2D noiseTexture;
+
+float2 resolution;
 RWTexture2D<float4> screenTexture;
+
 StructuredBuffer<Circle> circleBuffer;
 StructuredBuffer<Box> boxBuffer;
-float2 resolution;
+StructuredBuffer<Triangle> triangleBuffer;
 
 /*
  *----------------------------
@@ -62,6 +76,17 @@ float sdBox(float2 position, Box box)
     return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
 }
 
+float sdTriangle(float2 p, Triangle t)
+{
+    p -= t.Position;
+    const float k = sqrt(3.0);
+    p.x = abs(p.x) - t.Radius;
+    p.y = p.y + t.Radius/k;
+    if( p.x+k*p.y>0.0 ) p = float2(p.x-k*p.y,-k*p.x-p.y)/2.0;
+    p.x -= clamp( p.x, -2.0*t.Radius, 0.0 );
+    return -length(p)*sign(p.y);
+}
+
 /*
  *----------------------------
  * COMPUTATION
@@ -78,25 +103,39 @@ SDFInfo ComputeShape(float dist, float blendingFactor, float4 color, SDFInfo inf
     return result;
 }
 
-float SDF(float2 pos, out float4 color)
+float SDF(float2 pos, out float4 color, float noiseValue)
 {
     SDFInfo info;
     info.minDist = 99999999;
     info.avgBlendingFactor = 0.0;
     info.minColor = 0;
+
     uint countCircle;
     uint countBox;
+    uint countTriangle;
+    // ReSharper disable once CppEntityAssignedButNoRead
     uint stride;
+
+    // ReSharper disable CppAssignedValueIsNeverUsed
     circleBuffer.GetDimensions(countCircle, stride);
     boxBuffer.GetDimensions(countBox, stride);
+    triangleBuffer.GetDimensions(countTriangle, stride);
+    
     for (uint i = 0; i < countCircle; ++i) {
-        Circle shape = circleBuffer[i]; float dist = sdCircle(pos, shape);
+        Circle shape = circleBuffer[i]; float dist = sdCircle(pos, shape) - noiseValue;
         info = ComputeShape(dist, shape.BlendingFactor, shape.Color, info);
     }
-    for (uint i = 0; i < countBox; ++i) {
-        Box shape = boxBuffer[i]; float dist = sdBox(pos, shape);
+    
+    for (uint j = 0; j < countBox; ++j) {
+        Box shape = boxBuffer[j]; float dist = sdBox(pos, shape) - noiseValue;
         info = ComputeShape(dist, shape.BlendingFactor, shape.Color, info);
     }
+    
+    for (uint k = 0; k < countTriangle; ++k) {
+        Triangle shape = triangleBuffer[k]; float dist = sdTriangle(pos, shape) - noiseValue;
+        info = ComputeShape(dist, shape.BlendingFactor, shape.Color, info);
+    }
+    
     color = info.minColor;
     return info.minDist;
 }
@@ -104,8 +143,12 @@ float SDF(float2 pos, out float4 color)
 [numthreads(8,8,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
+    uint width;
+    uint height;
+    noiseTexture.GetDimensions(width, height); 
+    float noiseValue = lerp(noiseTexture[int2((id.x + time) % width, id.y % height)].r, noiseTexture[int2(id.x % width, (id.y + time) % height)].r, 0.5) * noiseAmount;
     float4 color;
-    float dist = SDF(id.xy, color);
+    float dist = SDF(id.xy, color, noiseValue);
     if (dist <= 0)
         screenTexture[id.xy] = float4(lerp(color.rgb, screenTexture[id.xy].rgb, 1.0 - color.a), 1);
     else if (dist <= 8)
