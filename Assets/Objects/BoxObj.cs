@@ -3,9 +3,9 @@ using UnityEngine;
 
 namespace Objects
 {
-    public class CircleObj : MonoBehaviour
+    public class BoxObj : MonoBehaviour
     {
-        [Min(0)] public float radius;
+        [Min(0)] public Vector2 dimensions;
         [Min(0)] public float blendingFactor;
         public Color color;
     
@@ -14,7 +14,7 @@ namespace Objects
         private void OnValidate()
         {
             if (!_sprite) _sprite = GetComponent<SpriteRenderer>();
-            transform.localScale = Vector3.one * radius * 2;
+            transform.localScale = new Vector3(dimensions.x, dimensions.y, 1.0f);
             _sprite.color = color;
         }
 
@@ -26,7 +26,7 @@ namespace Objects
 
         private void Start()
         {
-            ComputeRenderer.Circles.Add(this);
+            ComputeRenderer.Boxes.Add(this);
             ComputeRenderer.OnShapesChanged?.Invoke();
         }
 
@@ -34,20 +34,20 @@ namespace Objects
         {
             if (didStart)
             {
-                ComputeRenderer.Circles.Add(this);
+                ComputeRenderer.Boxes.Add(this);
                 ComputeRenderer.OnShapesChanged?.Invoke();
             }
         }
 
         private void OnDisable()
         {
-            ComputeRenderer.Circles.Remove(this);
+            ComputeRenderer.Boxes.Remove(this);
             ComputeRenderer.OnShapesChanged?.Invoke();
         }
 
         private void OnDestroy()
         {
-            ComputeRenderer.Circles.Remove(this);
+            ComputeRenderer.Boxes.Remove(this);
             ComputeRenderer.OnShapesChanged?.Invoke();
         }
     }

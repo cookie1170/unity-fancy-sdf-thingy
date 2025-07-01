@@ -1,5 +1,11 @@
 #pragma kernel CSMain
 
+/*
+*----------------------------
+ * DECLARATION
+ * ---------------------------
+ */
+
 struct Circle
 {
     float4 Color;
@@ -8,9 +14,31 @@ struct Circle
     float BlendingFactor;
 };
 
+struct Box
+{
+    float4 Color;
+    float2 Position;
+    float2 Dimensions;
+    float BlendingFactor;
+};
+
+struct SDFInfo
+{
+    float minDist;
+    float avgBlendingFactor;
+    float4 minColor;
+};
+
 RWTexture2D<float4> screenTexture;
 StructuredBuffer<Circle> circleBuffer;
+StructuredBuffer<Box> boxBuffer;
 float2 resolution;
+
+/*
+ *----------------------------
+ * MATH FUNCTIONS
+ * ---------------------------
+ */
 
 float2 smoothMin(float a, float b, float k)
 {
@@ -27,31 +55,50 @@ float sdCircle(float2 p, Circle circle)
     return length(p) - circle.Radius;
 }
 
+float sdBox(float2 position, Box box)
+{
+    position -= box.Position;
+    float2 d = abs(position) - box.Dimensions;
+    return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
+}
+
+/*
+ *----------------------------
+ * COMPUTATION
+ * ---------------------------
+ */
+
+SDFInfo ComputeShape(float dist, float blendingFactor, float4 color, SDFInfo info)
+{
+    SDFInfo result;
+    float2 sminResult = smoothMin(dist, info.minDist, max(info.avgBlendingFactor, blendingFactor));
+    result.minDist = sminResult.x;
+    result.avgBlendingFactor = lerp(info.avgBlendingFactor, blendingFactor, 1.0 - sminResult.y);
+    result.minColor = lerp(info.minColor, color, 1.0 - sminResult.y);
+    return result;
+}
+
 float SDF(float2 pos, out float4 color)
 {
-    float minDist = 999999999;
-    bool hasMinColor = false;
-    float4 minColor;
-    uint count;
+    SDFInfo info;
+    info.minDist = 99999999;
+    info.avgBlendingFactor = 0.0;
+    info.minColor = 0;
+    uint countCircle;
+    uint countBox;
     uint stride;
-    circleBuffer.GetDimensions(count, stride);
-    for (uint i = 0; i < count; ++i)
-    {
-        Circle circle = circleBuffer[i];
-        float dist = sdCircle(pos, circle);
-        float2 result = smoothMin(dist, minDist, circle.BlendingFactor);
-        minDist = result.x;
-        if (hasMinColor)
-        {
-            minColor = lerp(minColor, circle.Color, 1.0 - result.y);
-        } else
-        {
-            minColor = circle.Color;
-            hasMinColor = true;
-        }
+    circleBuffer.GetDimensions(countCircle, stride);
+    boxBuffer.GetDimensions(countBox, stride);
+    for (uint i = 0; i < countCircle; ++i) {
+        Circle shape = circleBuffer[i]; float dist = sdCircle(pos, shape);
+        info = ComputeShape(dist, shape.BlendingFactor, shape.Color, info);
     }
-    color = minColor;
-    return minDist;
+    for (uint i = 0; i < countBox; ++i) {
+        Box shape = boxBuffer[i]; float dist = sdBox(pos, shape);
+        info = ComputeShape(dist, shape.BlendingFactor, shape.Color, info);
+    }
+    color = info.minColor;
+    return info.minDist;
 }
 
 [numthreads(8,8,1)]
